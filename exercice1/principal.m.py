@@ -42,10 +42,11 @@ def multinomial_resample(weights):
     return np.searchsorted(cumulative_sum, random(len(weights)))
 
 #filtrage
-def filtrage_particulaire_m(x_part, W_part, y, R, N, T, n):
+def filtrage_particulaire_m(x_part, W_part, R, N, T, n):
+    y = 
     x_filtre = np.zeros(N)
     W_filtre = np.zeros(N)
-    for i in range(N):
+    for i in range(1,N+1):
         x_filtre[i] = f(x_part[i], n) + np.random.normal(0, Q)
         W_filtre[i] = 1/np.sqrt(2*np.pi*R)*np.exp(-0.5*(y[i]-g(x_filtre[i]))**2/R)
     for i in range(N):
@@ -53,6 +54,8 @@ def filtrage_particulaire_m(x_part, W_part, y, R, N, T, n):
     W_filtre = multinomial_resample(W_filtre)
     x_estime = np.sum(W_filtre * x_filtre)
     return x_estime, x_filtre, W_filtre
+
+
 
 
             

@@ -15,7 +15,7 @@ import os
 
 def lecture_image() :
 
-    SEQUENCE = "./sequences/sequence1/"
+    SEQUENCE = "./exercice2/videos_sequences/sequence1/sequence1/"
     #charge le nom des images de la séquence
     filenames = os.listdir(SEQUENCE)
     T = len(filenames)
@@ -113,4 +113,62 @@ def calcul_histogramme(im,zoneAT,Nb):
     histogramme=histogramme/np.sum(histogramme)
   #  print(new_im)
     return (new_im,kmeans,histogramme)
+
+N=50
+N_b=10
+Lambda=20
+C1=300
+C2=300
+Q=np.array([[C1,0],[0,C2]])
+
+def f(x_prec):
+    return np.random.multivariate_normal(x_prec,Q,N)
+
+def D(q,q_prime):
+    somme=0
+    for i in range(N_b):
+        somme+=np.sqrt(q[i]*q_prime[i])
+    return np.sqrt(1-somme)
+    
+
+def multinomial_resample(weights):
+    cumulative_sum = np.cumsum(weights)
+    cumulative_sum[-1] = 1.
+    return np.searchsorted(cumulative_sum, random(len(weights)))
+
+def filtrage_particulaire_m(image, x_part, W_part, R, N, Q, q, select, T, n):
+    x_filtre = np.zeros(N)
+    W_filtre = np.zeros(N)
+    for i in range(N):
+        x_filtre[i] = [f(x_part[i]),select[2],select[3]]
+        q_prime=calcul_histogramme(image,x_filtre[i],N_b)
+        distance=D(q,q_prime)
+        W_filtre[i] = np.exp(-Lambda*(distance**2))
+    W_filtre /= np.sum(W_filtre)  
+    indices = multinomial_resample(W_filtre)
+    x_filtre = x_filtre[indices]
+    W_filtre = np.ones(N) / N
+    x_est = np.sum(W_filtre * x_filtre[0:1])
+    return x_est, x_filtre, W_filtre
+
+lecture_image()
+select=selectionner_zone()
+q=calcul_histogramme(lecture_image()[0],select,N_b)
+print(select)
+x_part = np.random.multivariate_normal(np.array([select[0],select[1]]),np.diag(np.sqrt([np.sqrt(300),np.sqrt(300)])),N)
+
+T=len(lecture_image())
+x_est = np.zeros(T)
+W_part=np.ones(N)/N
+k=0
+
+for image in lecture_image[1]:
+    k+=1
+    im=plt.imread(image)
+    x_est[k], x_part, W_part = filtrage_particulaire_m(im,x_part,W_part,R,N,Q,q,select,T,k)
+    
+
+    
+
+
 

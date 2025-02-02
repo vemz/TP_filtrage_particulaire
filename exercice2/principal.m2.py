@@ -2,66 +2,42 @@ import scipy.io
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as ptch
-import matplotlib.image as mpimg
 from PIL import Image
-import math
-from scipy.stats import norm
-from numpy.random import random
 from sklearn.cluster import KMeans
-from sklearn.metrics import pairwise_distances_argmin
-from sklearn.datasets import load_sample_image
 from sklearn.utils import shuffle
 import os
 
-def lecture_image() :
-
+def lecture_image():
     SEQUENCE = "./exercice2/videos_sequences/sequence1/sequence1/"
-    #charge le nom des images de la séquence
-    filenames = os.listdir(SEQUENCE)
+    filenames = sorted(os.listdir(SEQUENCE))
     T = len(filenames)
-    #charge la premiere image dans ’im’
-    tt = 0
+    im = Image.open(os.path.join(SEQUENCE, filenames[0]))
+    return im, filenames, T, SEQUENCE
 
-    im=Image.open((str(SEQUENCE)+str(filenames[tt])))
+def selectionner_zone(im):
+    plt.figure("Sélectionnez la zone à suivre")
     plt.imshow(im)
+    print('Cliquez 4 points pour définir la zone.')
     
-    return(im,filenames,T,SEQUENCE)
-
-def selectionner_zone() :
-
-    #lecture_image()
-    print('Cliquer 4 points dans l image pour definir la zone a suivre.') ;
-    zone = np.zeros([2,4])
- #   print(zone))
-    compteur=0
-    while(compteur != 4):
-        res = plt.ginput(1)
-        a=res[0]
-        #print(type(a)))
-        zone[0,compteur] = a[0]
-        zone[1,compteur] = a[1]   
-        plt.plot(a[0],a[1],marker='X',color='red') 
-        compteur = compteur+1 
-
-    #print(zone)
-    newzone = np.zeros([2,4])
-    newzone[0, :] = np.sort(zone[0, :]) 
-    newzone[1, :] = np.sort(zone[1, :])
+    points = []
+    while len(points) < 4:
+        pt = plt.ginput(1, timeout=-1)[0]
+        plt.plot(pt[0], pt[1], 'rx')
+        points.append(pt)
+        plt.draw()
     
-    zoneAT = np.zeros([4])
-    zoneAT[0] = newzone[0,0]
-    zoneAT[1] = newzone[1,0]
-    zoneAT[2] = newzone[0,3]-newzone[0,0] 
-    zoneAT[3] = newzone[1,3]-newzone[1,0] 
-    #affichage du rectangle
-    #print(zoneAT)
-    xy=(zoneAT[0],zoneAT[1])
-    rect=ptch.Rectangle(xy,zoneAT[2],zoneAT[3],linewidth=3,edgecolor='red',facecolor='None') 
-    #plt.Rectangle(zoneAT[0:1],zoneAT[2],zoneAT[3])
-    currentAxis = plt.gca()
-    currentAxis.add_patch(rect)
+    points = np.array(points)
+    x_min, y_min = points.min(axis=0)
+    x_max, y_max = points.max(axis=0)
+    zoneAT = [x_min, y_min, x_max-x_min, y_max-y_min]
+    
+    rect = ptch.Rectangle((x_min, y_min), x_max-x_min, y_max-y_min, 
+                         linewidth=2, edgecolor='r', facecolor='none')
+    plt.gca().add_patch(rect)
     plt.show(block=False)
-    return(zoneAT)
+    plt.pause(0.1)
+    plt.close()
+    return np.array(zoneAT)
 
 def rgb2ind(im,nb) :
     #nb = nombre de couleurs ou kmeans qui contient la carte de couleur de l'image de référence
@@ -114,11 +90,11 @@ def calcul_histogramme(im,zoneAT,Nb):
   #  print(new_im)
     return (new_im,kmeans,histogramme)
 
-N=50
-N_b=10
-Lambda=20
-C1=300
-C2=300
+N=100
+N_b=100
+Lambda=50
+C1=3000
+C2=3000
 Q=np.array([[C1,0],[0,C2]])
 
 def f(x_prec):
@@ -133,39 +109,97 @@ def D(q,q_prime):
 
 def multinomial_resample(weights):
     cumulative_sum = np.cumsum(weights)
-    cumulative_sum[-1] = 1.
-    return np.searchsorted(cumulative_sum, random(len(weights)))
+    cumulative_sum[-1] = 1.0  # Force la somme cumulée à terminer à 1.0
+    return np.searchsorted(cumulative_sum, np.random.random(len(weights)))
 
-def filtrage_particulaire_m(image, x_part, W_part, R, N, Q, q, select, T, n):
-    x_filtre = np.zeros(N)
-    W_filtre = np.zeros(N)
+def filtrage_particulaire_m(im, particles_prev, weights_prev, Q, q_ref, zone_ref):
+    N = len(particles_prev)
+    
+    # 1. Propagation des particules
+    particles = np.zeros_like(particles_prev)
     for i in range(N):
-        x_filtre[i] = [f(x_part[i]),select[2],select[3]]
-        q_prime=calcul_histogramme(image,x_filtre[i],N_b)
-        distance=D(q,q_prime)
-        W_filtre[i] = np.exp(-Lambda*(distance**2))
-    W_filtre /= np.sum(W_filtre)  
-    indices = multinomial_resample(W_filtre)
-    x_filtre = x_filtre[indices]
-    W_filtre = np.ones(N) / N
-    x_est = np.sum(W_filtre * x_filtre[0:1])
-    return x_est, x_filtre, W_filtre
+        particles[i] = np.random.multivariate_normal(particles_prev[i], Q)
+    
+    # 2. Calcul des poids
+    weights = np.zeros(N)
+    for i in range(N):
+        # Calcul de l'histogramme pour la particule
+        x, y = particles[i]
+        w, h = zone_ref[2], zone_ref[3]
+        try:
+            _, _, hist = calcul_histogramme(im, [x, y, w, h], q_ref[1])
+            d = D(q_ref[2], hist)
+            weights[i] = np.exp(-Lambda * d**2)
+        except:
+            weights[i] = 0.0
+    
+    weights /= weights.sum()
+    
+    indices = multinomial_resample(weights)
+    particles = particles[indices]
 
-lecture_image()
-select=selectionner_zone()
-q=calcul_histogramme(lecture_image()[0],select,N_b)
-print(select)
-x_part = np.random.multivariate_normal(np.array([select[0],select[1]]),np.diag(np.sqrt([np.sqrt(300),np.sqrt(300)])),N)
+    x_est = np.mean(particles, axis=0)
+    
+    return x_est, particles, weights
 
-T=len(lecture_image())
-x_est = np.zeros(T)
-W_part=np.ones(N)/N
-k=0
+# Code principal corrigé
+im, filenames, T, SEQUENCE = lecture_image()
 
-for image in lecture_image[1]:
-    k+=1
-    im=plt.imread(image)
-    x_est[k], x_part, W_part = filtrage_particulaire_m(im,x_part,W_part,R,N,Q,q,select,T,k)
+# Afficher l'image correctement
+plt.figure("Image initiale", figsize=(10,6))
+plt.imshow(im)
+plt.axis('image')
+plt.show(block=False)
+plt.pause(0.1)
+
+# Sélection de zone
+zoneAT = selectionner_zone(im)
+plt.close('all')
+
+# Calcul de l'histogramme de référence
+_, kmeans_ref, hist_ref = calcul_histogramme(im, zoneAT, N_b)
+q_ref = (zoneAT, kmeans_ref, hist_ref)
+
+# Initialisation des particules (position initiale + bruit)
+x_initial = np.array([zoneAT[0], zoneAT[1]])
+x_part = np.random.multivariate_normal(
+    mean=x_initial, 
+    cov=[[C1, 0], [0, C2]], 
+    size=N
+)
+
+# Boucle principale sur les images ---------------------------------
+plt.figure(figsize=(10, 6))
+for t in range(T):
+    # Chargement de l'image
+    im = Image.open(os.path.join(SEQUENCE, filenames[t]))
+    
+    # Filtrage particulaire
+    x_est, x_part, W_part = filtrage_particulaire_m(im, x_part, None, Q, q_ref, zoneAT)
+    
+    # Visualisation
+    plt.clf()
+    plt.imshow(im)
+    
+    # Affichage des particules
+    plt.scatter(x_part[:,0], x_part[:,1], c='r', s=10, alpha=0.4)
+    
+    # Affichage du rectangle estimé
+    rect = ptch.Rectangle(
+        (x_est[0], x_est[1]), 
+        zoneAT[2], 
+        zoneAT[3],
+        linewidth=2, 
+        edgecolor='g', 
+        facecolor='none'
+    )
+    plt.gca().add_patch(rect)
+    
+    plt.title(f"Frame {t+1}/{T}")
+    plt.pause(0.01)
+    plt.draw()
+
+plt.show()
     
 
     

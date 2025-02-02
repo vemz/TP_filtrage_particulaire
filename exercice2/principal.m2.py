@@ -126,12 +126,10 @@ def filtrage_particulaire_m(im, particles_prev, weights_prev, Q, q_ref, zone_ref
         # Calcul de l'histogramme pour la particule
         x, y = particles[i]
         w, h = zone_ref[2], zone_ref[3]
-        try:
-            _, _, hist = calcul_histogramme(im, [x, y, w, h], q_ref[1])
-            d = D(q_ref[2], hist)
-            weights[i] = np.exp(-Lambda * d**2)
-        except:
-            weights[i] = 0.0
+
+        _, _, hist = calcul_histogramme(im, [x, y, w, h], q_ref[1])
+        d = D(q_ref[2], hist)
+        weights[i] = np.exp(-Lambda * d**2)
     
     weights /= weights.sum()
     
@@ -146,7 +144,6 @@ def filtrage_particulaire_m(im, particles_prev, weights_prev, Q, q_ref, zone_ref
 im, filenames, T, SEQUENCE = lecture_image()
 
 # Afficher l'image correctement
-plt.figure("Image initiale", figsize=(10,6))
 plt.imshow(im)
 plt.axis('image')
 plt.show(block=False)

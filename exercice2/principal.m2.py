@@ -92,7 +92,7 @@ def calcul_histogramme(im,zoneAT,Nb):
 
 N=100
 N_b=100
-Lambda=50
+Lambda=800
 C1=3000
 C2=3000
 Q=np.array([[C1,0],[0,C2]])
@@ -166,6 +166,7 @@ x_part = np.random.multivariate_normal(
 )
 
 # Boucle principale sur les images ---------------------------------
+tableau_poids=[]
 plt.figure(figsize=(10, 6))
 for t in range(T):
     # Chargement de l'image
@@ -173,7 +174,7 @@ for t in range(T):
     
     # Filtrage particulaire
     x_est, x_part, W_part = filtrage_particulaire_m(im, x_part, None, Q, q_ref, zoneAT)
-    
+    tableau_poids.append(W_part)
     # Visualisation
     plt.clf()
     plt.imshow(im)
@@ -197,9 +198,17 @@ for t in range(T):
     plt.draw()
 
 plt.show()
-    
 
-    
+N_eff_series = [1 / np.sum(w**2) for w in tableau_poids]
+
+# Tracé de la courbe de N_eff en fonction du numéro de frame (n)
+plt.figure(figsize=(10, 5))
+plt.plot(np.arange(1, T+1), N_eff_series, marker='o', linestyle='-', color='b')
+plt.xlabel("Numéro de frame (n)")
+plt.ylabel(r"$\frac{1}{\sum_i (w_i)^2}$")
+plt.title("Évolution de $1/\sum_i(w_i^2)$ par frame")
+plt.grid(True)
+plt.show()
 
 
 
